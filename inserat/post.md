@@ -3,7 +3,7 @@
 Erstellt ein neues Inserat auf dem uRent-Marktplatz (Pkw, Lkw, Transporter, Anhänger).
 
 - **Base URL:** `https://urent-rental.de`
-- **Endpoint:** `/api/inserat`
+- **Endpoint:** `/api/v1/inserat`
 - **Methode:** `POST`
 - **Content-Type:** `application/json`
 - **Auth:** Erfordert eingeloggten Benutzer (Session-basiert). Ohne gültige Sitzung → `401 Unauthorized`.
