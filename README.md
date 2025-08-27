@@ -94,6 +94,7 @@ So finden Teams schnell die relevanten Themen je Geschäftsbereich.
 **How-tos**
 - **Inserat erstellen** → **[inserat/post.md](inserat/post.md)**
 - **Inserat auf Veröffentlichungsbereitschaft prüfen** → **[inserat/check-ready-for-release.md](inserat/check-ready-for-release.md)**
+- **Verknüpfte Buchungen erhalten** → **[inserat/check-ready-for-release.md](inserat/bookings.md)**
 - **Inserat veröffentlichen/deaktivieren** → **[inserat/publish-unpublish.md](inserat/publish-unpublish.md)**
 
 **Referenz**
