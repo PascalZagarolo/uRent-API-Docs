@@ -58,8 +58,7 @@ So finden Teams schnell die relevanten Themen je Geschäftsbereich.
 - Cursor- oder Seiten-Paginierung (z. B. `?limit=25&cursor=...`).
 - Responses enthalten `nextCursor`/`prevCursor` (falls vorhanden).
 
-### Fehlerformat
-- Einheitliches JSON-Fehlerobjekt; Details siehe **[Schemas → Error](schemas/error.md)**.
+
 
 ### Webhooks
 - Mögliche Events: `booking.created`, `booking.canceled`, `payment.succeeded`, `payment.failed`.
