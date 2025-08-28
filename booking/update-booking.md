@@ -1,13 +1,13 @@
-# API: Booking bearbeiten (Update)
+# API: Booking bearbeiten (Update) – Minutenbasierte Zeit-Slots
 
-**Route:** `PATCH /api/v1/booking/{bookingId}` *(je nach Routing ggf. `/api/v1/booking/{bookingId}/edit`)*  
+**Route:** `PATCH /api/v1/booking/{bookingId}`  
 **Stabilität:** Beta  
 **Version:** v1  
 **Basis-URL (Prod):** `https://urent-rental.de/api/v1`  
 **Auth:** API Key (`Authorization: Bearer <key>` **oder** `x-api-key: <key>`)  
 **Erforderliche Berechtigung:** `BOOKING_UPDATE`
 
-Aktualisiert Felder einer bestehenden **Buchung** (teilweise Updates). Optional kann geprüft werden, ob der neue Zeitraum/Fahrzeugbezug **kollisionsfrei** ist.
+Aktualisiert eine bestehende **Buchung** per Teil-Update. Unterstützt **minutenbasierte Zeit-Slots** über `startPeriod`/`endPeriod` (Strings mit Minuten seit 00:00, z. B. `"600"` = 10:00). Optional prüft der Server, ob die Änderungen **kollisionsfrei** sind.
 
 
 ---
@@ -36,7 +36,7 @@ Aktualisiert Felder einer bestehenden **Buchung** (teilweise Updates). Optional 
 - [Beispiele](#beispiele)
   - [Zeitraum ändern (mit Availability-Check)](#zeitraum-ändern-mit-availability-check)
   - [Nur Notiz/Titel ändern](#nur-notiztitel-ändern)
-  - [Fahrzeug zuweisen & Slots setzen](#fahrzeug-zuweisen--slots-setzen)
+  - [Fahrzeug zuweisen & Minuten-Slots setzen](#fahrzeug-zuweisen--minuten-slots-setzen)
   - [Konfliktfall (409)](#konfliktfall-409)
 - [JSON Schemas](#json-schemas)
   - [Request-Body](#request-body-schema)
@@ -50,8 +50,9 @@ Aktualisiert Felder einer bestehenden **Buchung** (teilweise Updates). Optional 
 
 ## Zweck
 
-- **Teil-Update** einer Buchung: Nur übergebene Felder werden geändert.
-- **Optionale Kollisionserkennung** gegen bestehende Buchungen (Standard: `checkAvailability=true`).
+- **Teil-Update**: Es werden nur übergebene Felder geändert.
+- **Minutenbasierte Slots**: `startPeriod`/`endPeriod` sind **Strings** mit Minuten seit Mitternacht (z. B. `"600"` = 10:00, `"720"` = 12:00).
+- **Optionale Kollisionserkennung** (Standard: `checkAvailability=true`).
 
 
 ---
@@ -62,7 +63,7 @@ Aktualisiert Felder einer bestehenden **Buchung** (teilweise Updates). Optional 
   - `Authorization: Bearer <api-key>`
   - **oder** `x-api-key: <api-key>`
 - Erforderliche Berechtigung: **`BOOKING_UPDATE`**
-- **Ownership-Prüfung (externe Apps):** Es wird erzwungen, dass der Key zur Installation gehört, die Zugriff auf den **Owner des Inserats** der Buchung hat.
+- **Ownership-Prüfung (externe Apps):** Der Key muss zur Installation gehören, die Zugriff auf den **Owner des Inserats** der Buchung hat.
 - Bei Rate-Limit-Verletzung kann ein `Retry-After`-Header gesetzt werden.
 
 
@@ -98,8 +99,8 @@ Aktualisiert Felder einer bestehenden **Buchung** (teilweise Updates). Optional 
   "content": "Hinweis aktualisiert",
   "startDate": "2025-09-02T08:00:00Z",
   "endDate": "2025-09-04T08:00:00Z",
-  "startPeriod": "08",
-  "endPeriod": "12",
+  "startPeriod": "600",
+  "endPeriod": "720",
   "isAvailability": false,
   "checkAvailability": true
 }
@@ -107,22 +108,22 @@ Aktualisiert Felder einer bestehenden **Buchung** (teilweise Updates). Optional 
 
 ### Validierung & Regeln
 
-- Alle Felder **optional** (Teil-Update).  
-- `name`: string, min. 1 (falls gesetzt)  
-- `startDate`, `endDate`: ISO‑Zeit (falls gesetzt)  
-- Wenn **beide** gesetzt: `startDate < endDate`  
-- `startPeriod`, `endPeriod`: **string** mit ganzzahligem Inhalt (Slots; halb-offen \[`start`,`end`)).  
+- Alle Felder **optional** (Teil-Update).
+- `name`: string, min. 1 (falls gesetzt).
+- `startDate`, `endDate`: ISO‑Zeit (falls gesetzt).
+- Wenn **beide** gesetzt: `startDate < endDate`.
+- **Minuten-Slots** (`startPeriod`, `endPeriod`): String mit ganzzahligem Inhalt, empfohlen **0–1440**; Intervall ist **halb‑offen** `[start, end)` in Minuten.
+- **Gleiches Datum** & **beide Seiten** haben Slots ⇒ Overlap, wenn **nicht** gilt `newStart >= existingEnd` **oder** `newEnd <= existingStart`.
+- **Teilweise Slots** (nur eine Seite hat Slots) ⇒ wird als **potenzieller Konflikt** behandelt.
 - `checkAvailability`: Default `true`.
 
 ### Verfügbarkeitsprüfung
 
-- Die Serverlogik prüft Kollisionen **nur**, wenn mindestens eines von
-  `startDate`, `endDate` oder `vehicleId` im Request steht **und** `checkAvailability=true` ist.
-- Für die Prüfung werden **fehlende** Werte mit den **aktuellen** Booking-Werten ergänzt (effektiver Zeitraum/Fahrzeug).
-- Bei **gleichem Datum** und vorhandenen Slots auf beiden Seiten wird **Slot-Overlap** geprüft; ansonsten gilt **ganztägiger** Konflikt.
-- Die eigene Buchung wird von der Kollisionsermittlung **ausgeschlossen**.
+- Die Kollisionsprüfung wird **nur** ausgeführt, wenn eines von `startDate`, `endDate` oder `vehicleId` im Request enthalten ist **und** `checkAvailability=true` ist.
+- Fehlen im Request Zeitwerte, werden die **aktuellen** Werte der Buchung verwendet (effektiver Zeitraum/Fahrzeug).
+- Eigene Buchung wird bei der Prüfung **ausgeschlossen**.
 
-> **Hinweis:** Änderst du **nur** `startPeriod`/`endPeriod`, löst das **allein** keine Prüfung aus. Sende zusätzlich `startDate` (und/oder `endDate`), um eine Slot-Revalidierung zu erzwingen.
+> **Wichtig:** Änderst du **nur** `startPeriod`/`endPeriod`, triggert das **allein** keine Prüfung. Sende zusätzlich `startDate` (und/oder `endDate`), um die Slot-Revalidierung auszulösen.
 
 
 ---
@@ -208,8 +209,8 @@ Aktualisiert Felder einer bestehenden **Buchung** (teilweise Updates). Optional 
         "id": "bok_123",
         "startDate": "2025-09-01T08:00:00.000Z",
         "endDate": "2025-09-03T08:00:00.000Z",
-        "startPeriod": "08",
-        "endPeriod": "12",
+        "startPeriod": "660",
+        "endPeriod": "780",
         "name": "Kollidierende Buchung"
       }
     ],
@@ -251,8 +252,8 @@ Header: `Retry-After: <sekunden>`
 | content         | string           | Freitext/Notiz. |
 | startDate       | ISO 8601         | Startzeit (UTC). |
 | endDate         | ISO 8601         | Endzeit (UTC). |
-| startPeriod     | string (Integer) | Slot-Start (halb-offen). |
-| endPeriod       | string (Integer) | Slot-Ende (halb-offen). |
+| startPeriod     | string (Minuten) | Slot-Start, Minuten seit 00:00 (z. B. `"600"` = 10:00). |
+| endPeriod       | string (Minuten) | Slot-Ende, Minuten seit 00:00 (halb-offen). |
 | isAvailability  | boolean          | Verfügbarkeitsblock statt Kundenbuchung. |
 | checkAvailability | boolean        | Default `true`; triggert Kollisionsprüfung bei Zeit-/Fahrzeugänderung. |
 
@@ -294,7 +295,7 @@ curl -s -X PATCH "https://urent-rental.de/api/v1/booking/9b9f4a2d-1e88-4d1b-8b6c
 
 ---
 
-### Fahrzeug zuweisen & Slots setzen
+### Fahrzeug zuweisen & Minuten-Slots setzen
 
 ```bash
 curl -s -X PATCH "https://urent-rental.de/api/v1/booking/9b9f4a2d-1e88-4d1b-8b6c-6a1c9a3d6e12" \
@@ -304,8 +305,8 @@ curl -s -X PATCH "https://urent-rental.de/api/v1/booking/9b9f4a2d-1e88-4d1b-8b6c
     "vehicleId": "0c7e7d2c-9a0b-4db8-8e9c-2d1f0a3b5c7d",
     "startDate": "2025-09-01T00:00:00Z",
     "endDate": "2025-09-01T23:59:59Z",
-    "startPeriod": "08",
-    "endPeriod": "12",
+    "startPeriod": "600",
+    "endPeriod": "720",
     "checkAvailability": true
   }'
 ```
@@ -321,6 +322,8 @@ curl -s -X PATCH "https://urent-rental.de/api/v1/booking/9b9f4a2d-1e88-4d1b-8b6c
   -d '{
     "startDate": "2025-09-01T08:00:00Z",
     "endDate": "2025-09-03T08:00:00Z",
+    "startPeriod": "660",
+    "endPeriod": "780",
     "checkAvailability": true
   }'
 ```
@@ -335,7 +338,9 @@ curl -s -X PATCH "https://urent-rental.de/api/v1/booking/9b9f4a2d-1e88-4d1b-8b6c
       {
         "id": "bok_123",
         "startDate": "2025-09-01T08:00:00.000Z",
-        "endDate": "2025-09-03T08:00:00.000Z"
+        "endDate": "2025-09-03T08:00:00.000Z",
+        "startPeriod": "600",
+        "endPeriod": "720"
       }
     ],
     "message": "The inserat is already booked for the requested time period. Found 1 conflicting booking(s)."
@@ -360,8 +365,8 @@ curl -s -X PATCH "https://urent-rental.de/api/v1/booking/9b9f4a2d-1e88-4d1b-8b6c
     "content": { "type": "string" },
     "startDate": { "type": "string", "format": "date-time" },
     "endDate": { "type": "string", "format": "date-time" },
-    "startPeriod": { "type": "string" },
-    "endPeriod": { "type": "string" },
+    "startPeriod": { "type": "string", "description": "Minuten seit 00:00, z. B. \"600\" = 10:00" },
+    "endPeriod": { "type": "string", "description": "Minuten seit 00:00, z. B. \"720\" = 12:00" },
     "isAvailability": { "type": "boolean" },
     "checkAvailability": { "type": "boolean", "default": true }
   },
@@ -424,8 +429,9 @@ curl -s -X PATCH "https://urent-rental.de/api/v1/booking/9b9f4a2d-1e88-4d1b-8b6c
 ## Hinweise
 
 - **Teil-Update:** Nur übergebene Felder werden geändert.
-- **Slot-Revalidierung:** Wenn du ausschließlich Slots änderst, setze zusätzlich `startDate` (und/oder `endDate`), um die Kollisionsprüfung zu triggern.
-- **Idempotenz (Empfehlung):** Für PATCH-Requests mit Nebenwirkungen kannst du `Idempotency-Key` verwenden, um Retries zu entdoppeln.
+- **Minuten-Slots:** Einheitliche Darstellung für UI/Integrationen; halboffenes Intervall `[start, end)`.
+- **Slot-Revalidierung:** Für reine Slot-Änderungen zusätzlich `startDate` oder `endDate` mitsenden, um die Prüfung zu starten.
+- **Idempotenz (Empfehlung):** `Idempotency-Key` für wiederholte PATCH-Aufrufe mit Nebenwirkungen verwenden.
 - **Audit:** Aktion und Ergebnis protokollieren (Wer/Was/Wann/Erfolg).
 
 
@@ -433,4 +439,4 @@ curl -s -X PATCH "https://urent-rental.de/api/v1/booking/9b9f4a2d-1e88-4d1b-8b6c
 
 ## Changelog
 
-- **2025-08-28:** Erste Fassung der Routen-Dokumentation hinzugefügt.
+- **2025-08-28:** Erste Fassung der Routen-Dokumentation (minutenbasierte Slots).
