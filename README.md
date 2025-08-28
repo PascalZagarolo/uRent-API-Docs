@@ -94,54 +94,28 @@ So finden Teams schnell die relevanten Themen je Geschäftsbereich.
 
 ## Buchungen
 
-> End-to-end Booking-Flow inkl. Zahlungen
+> End-to-end Booking-Flow
 
 **How-tos**
 - **Buchung erstellen** → **[booking/create-booking.md](booking/create-booking.md)**
 - **Buchung stornieren** → **[booking/delete-booking.md](booking/delete-booking.md)**
 - **Buchung updaten** → **[booking/update-booking.md](booking/update-booking.md)**
 
-**Referenz**
-- **Buchungen** → **[reference/buchungen.md](reference/buchungen.md)**  
-  (enthält u. a. `GET /bookings`, `GET /bookings/{bookingId}`, `POST /bookings`, `POST /bookings/{bookingId}/cancel`)
-- **Zahlungen (Payments)** → **[reference/payments.md](reference/payments.md)**  
-  (enthält u. a. `GET /payments/{paymentId}`)
 
 **Schemas**
 - **Booking** → **[schemas/booking.md](schemas/booking.md)**
-- **Payment** → **[schemas/payment.md](schemas/payment.md)**
+
 
 ---
 
-## Fahrzeuge
 
-> Fahrzeugbestand, Verfügbarkeiten & Preisfindung (Quote)
-
-**How-tos**
-- **Verfügbarkeit prüfen** → **[how-tos/verfuegbarkeit.md](how-tos/verfuegbarkeit.md)**
-- **Angebot (Quote) berechnen** → **[how-tos/quote-berechnen.md](how-tos/quote-berechnen.md)**
-
-**Referenz**
-- **Fahrzeuge** → **[reference/vehicles.md](reference/vehicles.md)**  
-  (enthält u. a. `GET /vehicles`, `GET /vehicles/{vehicleId}`, `GET /vehicles/{vehicleId}/availability`, `POST /vehicles/{vehicleId}/quote`)
-
-**Schemas**
-- **Vehicle** → **[schemas/vehicle.md](schemas/vehicle.md)**
-
----
 
 ## Schemas (Auszug)
 
 - **User** → **[schemas/user.md](schemas/user.md)**
-- **Subscription** → **[schemas/subscription.md](schemas/subscription.md)**
 - **Inserat** → **[schemas/inserat.md](schemas/inserat.md)**
-- **Inserat-Attribute** → **[schemas/inserat-attribute.md](schemas/inserat-attribute.md)**
-- **Address** → **[schemas/address.md](schemas/address.md)**
-- **Images** → **[schemas/images.md](schemas/images.md)**
 - **Booking** → **[schemas/booking.md](schemas/booking.md)**
-- **Payment** → **[schemas/payment.md](schemas/payment.md)**
-- **Vehicle** → **[schemas/vehicle.md](schemas/vehicle.md)**
-- **Error** → **[schemas/error.md](schemas/error.md)**
+
 
 ---
 
