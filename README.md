@@ -88,7 +88,7 @@ So finden Teams schnell die relevanten Themen je Geschäftsbereich.
 - **Inserat** → **[schemas/inserat.md](schemas/inserat.md)**
 - **Adresse** → **[schemas/address.md](schemas/address.md)**
 - **Bilder** → **[schemas/images.md](schemas/images.md)**
-- **Kategorie-Attribute** → **[schemas/inserat-attribute.md](schemas/inserat-attribute.md)**
+
 
 ---
 
