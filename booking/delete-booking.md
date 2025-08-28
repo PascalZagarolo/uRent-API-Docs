@@ -42,7 +42,7 @@ Löscht eine bestehende **Buchung**. Für externe Apps wird zusätzlich geprüft
 ## Zweck
 
 Dauerhaftes Entfernen einer Buchung.  
-Die Route validiert zunächst die **Booking-ID**, prüft das Vorhandensein der Buchung und des zugehörigen **Inserats** und erzwingt eine **Mandantentrennung** für externe Integrationen (z. B. Trafe).
+Die Route validiert zunächst die **Booking-ID**, prüft das Vorhandensein der Buchung und des zugehörigen **Inserats** und erzwingt eine **Mandantentrennung** für externe Integrationen.
 
 
 ---
