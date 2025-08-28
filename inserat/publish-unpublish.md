@@ -1,13 +1,13 @@
-# API: Inserat – Veröffentlichungsbereitschaft prüfen
+# API: Inserat veröffentlichen / deaktivieren
 
-**Route:** `GET /api/v1/inserat/{inseratId}/check-ready-for-release`  
+**Route:** `PATCH /api/v1/inserat/{inseratId}/publish-unpublish`  
 **Stabilität:** Beta  
 **Version:** v1  
 **Basis-URL (Prod):** `https://urent-rental.de/api/v1`  
 **Auth:** API Key (`Authorization: Bearer <key>` **oder** `x-api-key: <key>`)  
-**Erforderliche Berechtigung:** `INSERAT_READ`
+**Erforderliche Berechtigung:** `INSERAT_WRITE`
 
-Diese Route prüft, ob ein Inserat **veröffentlicht** werden kann. Neben `ready: true|false` liefert die Antwort Informationen zu **fehlenden Attributen** und zur **Subscription** (Abo-Limits, Ablaufstatus, aktueller Verbrauch).
+Schaltet den Veröffentlichungsstatus eines Inserats **an** oder **aus**. Beim Veröffentlichen kann (standardmäßig) automatisch geprüft werden, ob das Inserat **bereit für die Veröffentlichung** ist. Zusätzlich gibt es Seiteneffekte wie **Geocoding der Adresse**, **Auto-Anlage fehlender Fahrzeuge** bei Multi-Inseraten und das **Zurücksetzen von Hervorhebungen** beim Deaktivieren.
 
 
 ---
@@ -20,27 +20,29 @@ Diese Route prüft, ob ein Inserat **veröffentlicht** werden kann. Neben `ready
   - [HTTP-Methode](#http-methode)
   - [Pfadparameter](#pfadparameter)
   - [Header](#header)
-  - [Query-Parameter](#query-parameter)
+  - [Body](#body)
 - [Responses](#responses)
-  - [200 – OK (prüfergebnis)](#200--ok-prüfergebnis)
+  - [200 – OK](#200--ok)
   - [400 – Ungültige Inserat-ID](#400--ungültige-inserat-id)
+  - [400 – Ungültiger Body](#400--ungültiger-body)
+  - [400 – Validierung fehlgeschlagen](#400--validierung-fehlgeschlagen)
+  - [400 – Zu viele Fahrzeuge auf einmal](#400--zu-viele-fahrzeuge-auf-einmal)
   - [401 – Nicht autorisiert](#401--nicht-autorisiert)
   - [403 – Unzureichende Berechtigungen](#403--unzureichende-berechtigungen)
+  - [403 – Kein Zugriff auf dieses Inserat](#403--kein-zugriff-auf-dieses-inserat)
   - [404 – Inserat nicht gefunden](#404--inserat-nicht-gefunden)
   - [429 – Rate Limit überschritten](#429--rate-limit-überschritten)
   - [500 – Interner Fehler](#500--interner-fehler)
-- [Feldbeschreibung (200-Response)](#feldbeschreibung-200-response)
-- [Erforderliche Felder & Regeln](#erforderliche-felder--regeln)
+- [Seiteneffekte & Geschäftslogik](#seiteneffekte--geschäftslogik)
 - [Beispiele](#beispiele)
-  - [Beispiel: Erfolgreich & bereit](#beispiel-erfolgreich--bereit)
-  - [Beispiel: Fehlende Felder](#beispiel-fehlende-felder)
-  - [Beispiel: Abo abgelaufen](#beispiel-abo-abgelaufen)
-  - [Beispiel: Abo-Limit erreicht](#beispiel-abo-limit-erreicht)
-  - [Beispiel: 401 Kein API Key](#beispiel-401-kein-api-key)
-  - [Beispiel: 403 Fehlende Berechtigungen](#beispiel-403-fehlende-berechtigungen)
-  - [Beispiel: 404 Nicht gefunden](#beispiel-404-nicht-gefunden)
-  - [Beispiel: 400 Ungültige ID](#beispiel-400-ungültige-id)
-- [JSON Schema (200-Response)](#json-schema-200-response)
+  - [Veröffentlichen (mit Validierung)](#veröffentlichen-mit-validierung)
+  - [Veröffentlichen (Validierung überspringen)](#veröffentlichen-validierung-überspringen)
+  - [Deaktivieren (Unpublish)](#deaktivieren-unpublish)
+  - [Beispiel: Validierung schlägt fehl](#beispiel-validierung-schlägt-fehl)
+  - [Beispiel: Multi-Inserat Limit](#beispiel-multi-inserat-limit)
+- [JSON Schemas](#json-schemas)
+  - [Request-Body](#request-body-schema)
+  - [200-Response (vereinfacht)](#200-response-vereinfacht)
 - [Changelog](#changelog)
 
 
@@ -48,21 +50,19 @@ Diese Route prüft, ob ein Inserat **veröffentlicht** werden kann. Neben `ready
 
 ## Zweck
 
-Valider Check, ob ein Inserat **veröffentlichungsbereit** ist. Die Antwort enthält:
-- `ready: true|false`
-- optional **Fehler-/Hinweistexte** in `error`
-- **fehlende Attribute** (grundlegend, kategoriespezifisch, Adresse, Bilder)
-- **Abo-Informationen** inkl. aktuellem Verbrauch und Limit
+- **Publish/Unpublish** eines Inserats über einen einheitlichen Endpunkt.
+- Optionaler **Vorab-Check** (standardmäßig aktiv) via `check-ready-for-release`.
+- Automatische **Datenpflege** (z. B. Geocoding, Fahrzeuge anlegen, Highlights zurücksetzen).
 
 
 ---
 
 ## Zugriff & Authentifizierung
 
-- Erlaubte Header für API Key:
+- Einer der folgenden Header ist erforderlich:
   - `Authorization: Bearer <api-key>`
   - **oder** `x-api-key: <api-key>`
-- Erforderliche Berechtigung: **`INSERAT_READ`**  
+- Erforderliche Berechtigung: **`INSERAT_WRITE`**
 - Bei Rate-Limit-Verletzung kann ein `Retry-After`-Header gesetzt werden.
 
 
@@ -71,13 +71,13 @@ Valider Check, ob ein Inserat **veröffentlichungsbereit** ist. Die Antwort enth
 ## Request
 
 ### HTTP-Methode
-`GET`
+`PATCH`
 
 ### Pfadparameter
 
-| Name        | Typ    | Erforderlich | Beschreibung                                   |
-|-------------|--------|--------------|------------------------------------------------|
-| inseratId   | UUIDv4 | ja           | Eindeutige Inserat-ID. Muss eine gültige UUID sein. |
+| Name      | Typ    | Erforderlich | Beschreibung                                   |
+|-----------|--------|--------------|------------------------------------------------|
+| inseratId | UUIDv4 | ja           | Eindeutige Inserat-ID. Muss eine gültige UUID sein. |
 
 ### Header
 
@@ -85,101 +85,103 @@ Valider Check, ob ein Inserat **veröffentlichungsbereit** ist. Die Antwort enth
 |---------------|-------------:|------------------------|------------------------------------------------|
 | Authorization | bedingt      | `Bearer sk_live_...`   | API Key (Alternative zu `x-api-key`).          |
 | x-api-key     | bedingt      | `sk_live_...`          | API Key (Alternative zu `Authorization`).      |
+| Content-Type  | ja           | `application/json`     |                                                |
 | Accept        | nein         | `application/json`     |                                                |
 
-> **Hinweis:** Einer der beiden Auth-Header (`Authorization` **oder** `x-api-key`) muss vorhanden sein.
+> **Hinweis:** Einer der beiden Auth-Header muss vorhanden sein.
 
-### Query-Parameter
-Keine.
+### Body
+
+```json
+{
+  "publish": true,
+  "skipValidation": false
+}
+```
+
+| Feld            | Typ     | Erforderlich | Standard | Beschreibung |
+|-----------------|---------|--------------|---------:|--------------|
+| publish         | boolean | ja           | –        | `true` = veröffentlichen, `false` = deaktivieren. |
+| skipValidation  | boolean | nein         | `false`  | Wenn `true`, wird der Vorab-Check **nicht** aufgerufen. |
 
 
 ---
 
 ## Responses
 
-### 200 – OK (Prüfergebnis)
-
-**Bereit zur Veröffentlichung:**
+### 200 – OK
 
 ```json
 {
-  "ready": true,
-  "subscription": {
-    "hasSubscription": true,
-    "subscriptionType": "PREMIUM",
-    "currentInserate": 2,
-    "maxInserate": 10,
-    "subscriptionExpired": false
+  "success": true,
+  "inserat": {
+    "...": "vollständiger Inserat-Datensatz inkl. isPublished/firstRelease etc."
   }
 }
 ```
 
-**Nicht bereit (fehlende Angaben):**
-
-```json
-{
-  "ready": false,
-  "error": "Missing attributes",
-  "missingAttributes": {
-    "basic": ["title", "price"],
-    "category": ["seats", "doors"],
-    "address": true,
-    "images": true
-  },
-  "subscription": {
-    "hasSubscription": true,
-    "subscriptionType": "BASIS",
-    "currentInserate": 1,
-    "maxInserate": 3,
-    "subscriptionExpired": false
-  }
-}
-```
-
-**Nicht bereit (Abo abgelaufen):**
-
-```json
-{
-  "ready": false,
-  "error": "Subscription has expired",
-  "subscription": {
-    "hasSubscription": true,
-    "subscriptionType": "PREMIUM",
-    "currentInserate": 2,
-    "maxInserate": 10,
-    "subscriptionExpired": true
-  }
-}
-```
-
-**Nicht bereit (Abo-Limit erreicht):**
-
-```json
-{
-  "ready": false,
-  "error": "Maximum number of published inserate (3) reached for your subscription",
-  "subscription": {
-    "hasSubscription": true,
-    "subscriptionType": "BASIS",
-    "currentInserate": 3,
-    "maxInserate": 3,
-    "subscriptionExpired": false
-  }
-}
-```
-
-> **Hinweis:** Für `subscriptionType = "ENTERPRISE"` ist das Limit **unbegrenzt**. In JSON kann `maxInserate` hierbei als `null` erscheinen (unlimited).
-
+> Der zurückgegebene `inserat`-Datensatz entspricht dem Datenbankmodell und enthält u. a. `isPublished` (neuer Status) und `firstRelease` (beim ersten Publish gesetzt bzw. beibehalten).
 
 ---
 
 ### 400 – Ungültige Inserat-ID
 
 ```json
+{ "success": false, "error": "Invalid inserat ID" }
+```
+
+---
+
+### 400 – Ungültiger Body
+
+Ungültiges JSON:
+```json
+{ "success": false, "error": "Invalid JSON in request body" }
+```
+
+Schema-Verletzung:
+```json
+{ "success": false, "error": "Invalid request body format" }
+```
+
+---
+
+### 400 – Validierung fehlgeschlagen
+
+(Ergebnis aus `check-ready-for-release` wird durchgereicht)
+
+```json
 {
-  "ready": false,
-  "error": "Invalid inserat ID"
+  "success": false,
+  "error": "Inserat is not ready for publication",
+  "validationErrors": {
+    "ready": false,
+    "error": "Missing attributes",
+    "missingAttributes": {
+      "basic": ["title", "price"],
+      "category": ["seats", "doors"],
+      "address": true,
+      "images": true
+    },
+    "subscription": {
+      "hasSubscription": true,
+      "subscriptionType": "BASIS",
+      "currentInserate": 3,
+      "maxInserate": 3,
+      "subscriptionExpired": false
+    }
+  }
 }
+```
+
+---
+
+### 400 – Zu viele Fahrzeuge auf einmal
+
+(Gilt nur für **Multi-Inserate**)
+
+```json
+{ "success": false, "error": "Too many vehicles added at once" }
 ```
 
 ---
@@ -188,14 +190,13 @@ Keine.
 
 Fehlender API Key:
 ```json
-{ "error": "API key required" }
+{ "success": false, "error": "API key required" }
 ```
 
 Ungültige/abgewiesene Authentifizierung:
 ```json
-{ "error": "Invalid API key" }
+{ "success": false, "error": "Invalid API key" }
 ```
-*(Fehlermeldung kann je nach Auth-Fehler variieren.)*
 
 ---
 
@@ -203,9 +204,18 @@ Ungültige/abgewiesene Authentifizierung:
 
 ```json
 {
+  "success": false,
   "error": "Insufficient permissions",
-  "missingPermissions": ["INSERAT_READ"]
+  "missingPermissions": ["INSERAT_WRITE"]
 }
+```
+
+---
+
+### 403 – Kein Zugriff auf dieses Inserat
+
+```json
+{ "success": false, "error": "No permission to access this inserat" }
 ```
 
 ---
@@ -213,10 +223,7 @@ Ungültige/abgewiesene Authentifizierung:
 ### 404 – Inserat nicht gefunden
 
 ```json
-{
-  "ready": false,
-  "error": "Inserat not found"
-}
+{ "success": false, "error": "Inserat not found" }
 ```
 
 ---
@@ -226,7 +233,7 @@ Ungültige/abgewiesene Authentifizierung:
 Header: `Retry-After: <sekunden>`
 
 ```json
-{ "error": "Rate limit exceeded" }
+{ "success": false, "error": "Rate limit exceeded" }
 ```
 
 ---
@@ -234,269 +241,140 @@ Header: `Retry-After: <sekunden>`
 ### 500 – Interner Fehler
 
 ```json
-{
-  "ready": false,
-  "error": "Internal server error"
-}
+{ "success": false, "error": "Internal server error" }
 ```
 
 
 ---
 
-## Feldbeschreibung (200-Response)
+## Seiteneffekte & Geschäftslogik
 
-| Feld | Typ | Beschreibung |
-|------|-----|--------------|
-| ready | boolean | `true`, wenn Veröffentlichung möglich; sonst `false`. |
-| error | string \| undefined | Begründung, warum `ready=false` (falls vorhanden). |
-| missingAttributes | object \| undefined | Detail zu fehlenden Pflichtangaben. |
-| missingAttributes.basic | string[] \| undefined | Fehlende **grundlegende** Felder (siehe unten). |
-| missingAttributes.category | string[] \| undefined | Fehlende **kategoriespezifische** Felder. |
-| missingAttributes.address | boolean \| undefined | `true`, wenn **Adresse** fehlt. |
-| missingAttributes.images | boolean \| undefined | `true`, wenn **mindestens ein Bild** fehlt. |
-| subscription | object | Zusammenfassung der Abo-Prüfung. |
-| subscription.hasSubscription | boolean | Ob ein aktives Abo vorhanden ist. |
-| subscription.subscriptionType | "FREE" \| "BASIS" \| "PREMIUM" \| "ENTERPRISE" \| null | Typ des Abos. |
-| subscription.currentInserate | number | Aktuelle Anzahl **veröffentlichter** Inserate des Nutzers. |
-| subscription.maxInserate | number \| null | Maximale erlaubte Veröffentlichungen. **Bei `ENTERPRISE` ggf. `null` (unbegrenzt).** |
-| subscription.subscriptionExpired | boolean | `true`, wenn das Abo abgelaufen ist. |
+1. **Vorab-Validierung (nur bei `publish=true` & `skipValidation=false`):**  
+   Es wird `GET /api/v1/inserat/{inseratId}/check-ready-for-release` aufgerufen. Falls `ready=false`, wird **kein Publish** durchgeführt und der Fehler samt Details in `validationErrors` zurückgegeben.
 
+2. **Multi-Inserat – Fahrzeuge automatisch anlegen:**  
+   Wenn `inserat.multi = true` und weniger Fahrzeuge existieren als `inserat.amount`, werden bis zu **25** fehlende Einträge automatisch erzeugt (Titel: „Fahrzeug 01“, „Fahrzeug 02“, …). Überschreitet die Differenz **25**, wird mit `400` abgebrochen.
 
----
+3. **Status-Update & Datumslogik:**  
+   - `isPublished` wird auf den gewünschten Zustand gesetzt.  
+   - `firstRelease` wird beim **ersten** Publish gesetzt (oder beibehalten, wenn bereits vorhanden).
 
-## Erforderliche Felder & Regeln
+4. **Unpublish – Darstellung zurücksetzen:**  
+   Wenn deaktiviert (`publish=false`), werden `isHighlighted=false` und `color=null` gesetzt.
 
-### Grundlegende Pflichtfelder (alle Kategorien)
-- `title`
-- `category` (einer von `PKW`, `LKW`, `TRAILER`, `TRANSPORT`)
-- `price`
-- `emailAddress`
-- `phoneNumber`
-
-### Kategoriespezifische Pflichtfelder
-
-**PKW**
-- `brand`, `model`, `seats`, `doors`, `transmission`, `fuel`
-
-**LKW**
-- `lkwBrand`, `model`, `seats`, `axis`, `power`, `fuel`, `transmission`, `weightClass`, `payload`
-
-**TRAILER**
-- `type`, `coupling`, `axis`, `weightClass`, `payload`, `brake`
-
-**TRANSPORT** (Transporter)
-- `transportBrand`, `seats`, `doors`, `fuel`, `transmission`, `weightClass`, `payload`
-
-> Die kategoriespezifischen Felder werden in den jeweiligen Attribut-Objekten erwartet (`pkwAttribute`, `lkwAttribute`, `trailerAttribute`, `transportAttribute`).
-
-### Weitere Anforderungen
-- **Adresse** muss vorhanden sein (`address`).  
-- **Mindestens ein Bild** muss hinterlegt sein (`images.length > 0`).
-
-### Abo-Limits (Überblick)
-- `FREE`: **0** Veröffentlichungen (Publizieren nicht erlaubt).
-- `BASIS`: **3** Veröffentlichungen.
-- `PREMIUM`: **10** Veröffentlichungen.
-- `ENTERPRISE`: **unbegrenzt** (JSON `maxInserate` kann `null` sein).
-
-> Zusätzlich wird geprüft, ob das Abo **abgelaufen** ist (`subscriptionExpired`).
+5. **Geocoding (nur beim Publish):**  
+   Falls eine Adresse mit `postalCode` vorhanden ist, wird über *geocode.maps.co* versucht, `longitude`/`latitude` zu ermitteln und in der Adresse zu speichern. **Fehlschläge brechen den Publish nicht ab.**
 
 
 ---
 
 ## Beispiele
 
-### Beispiel: Erfolgreich & bereit
+### Veröffentlichen (mit Validierung)
 
 ```bash
-curl -s -X GET \
-  "https://urent-rental.de/api/v1/inserat/9b9f4a2d-1e88-4d1b-8b6c-6a1c9a3d6e12/check-ready-for-release" \
+curl -s -X PATCH \
+  "https://urent-rental.de/api/v1/inserat/9b9f4a2d-1e88-4d1b-8b6c-6a1c9a3d6e12/publish-unpublish" \
   -H "Authorization: Bearer <API_KEY>" \
-  -H "Accept: application/json"
-```
-
-**Response 200**
-```json
-{
-  "ready": true,
-  "subscription": {
-    "hasSubscription": true,
-    "subscriptionType": "PREMIUM",
-    "currentInserate": 2,
-    "maxInserate": 10,
-    "subscriptionExpired": false
-  }
-}
+  -H "Content-Type: application/json" \
+  -d '{"publish": true}'
 ```
 
 ---
 
-### Beispiel: Fehlende Felder
-
-**Response 200**
-```json
-{
-  "ready": false,
-  "error": "Missing attributes",
-  "missingAttributes": {
-    "basic": ["title", "price"],
-    "category": ["seats", "doors"],
-    "address": true,
-    "images": true
-  },
-  "subscription": {
-    "hasSubscription": true,
-    "subscriptionType": "BASIS",
-    "currentInserate": 1,
-    "maxInserate": 3,
-    "subscriptionExpired": false
-  }
-}
-```
-
----
-
-### Beispiel: Abo abgelaufen
-
-**Response 200**
-```json
-{
-  "ready": false,
-  "error": "Subscription has expired",
-  "subscription": {
-    "hasSubscription": true,
-    "subscriptionType": "PREMIUM",
-    "currentInserate": 2,
-    "maxInserate": 10,
-    "subscriptionExpired": true
-  }
-}
-```
-
----
-
-### Beispiel: Abo-Limit erreicht
-
-**Response 200**
-```json
-{
-  "ready": false,
-  "error": "Maximum number of published inserate (3) reached for your subscription",
-  "subscription": {
-    "hasSubscription": true,
-    "subscriptionType": "BASIS",
-    "currentInserate": 3,
-    "maxInserate": 3,
-    "subscriptionExpired": false
-  }
-}
-```
-
----
-
-### Beispiel: 401 Kein API Key
+### Veröffentlichen (Validierung überspringen)
 
 ```bash
-curl -s -X GET \
-  "https://urent-rental.de/api/v1/inserat/9b9f4a2d-1e88-4d1b-8b6c-6a1c9a3d6e12/check-ready-for-release"
-```
-
-**Response 401**
-```json
-{ "error": "API key required" }
-```
-
----
-
-### Beispiel: 403 Fehlende Berechtigungen
-
-**Response 403**
-```json
-{
-  "error": "Insufficient permissions",
-  "missingPermissions": ["INSERAT_READ"]
-}
+curl -s -X PATCH \
+  "https://urent-rental.de/api/v1/inserat/9b9f4a2d-1e88-4d1b-8b6c-6a1c9a3d6e12/publish-unpublish" \
+  -H "Authorization: Bearer <API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"publish": true, "skipValidation": true}'
 ```
 
 ---
 
-### Beispiel: 404 Nicht gefunden
+### Deaktivieren (Unpublish)
 
-**Response 404**
-```json
-{
-  "ready": false,
-  "error": "Inserat not found"
-}
+```bash
+curl -s -X PATCH \
+  "https://urent-rental.de/api/v1/inserat/9b9f4a2d-1e88-4d1b-8b6c-6a1c9a3d6e12/publish-unpublish" \
+  -H "Authorization: Bearer <API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"publish": false}'
 ```
 
 ---
 
-### Beispiel: 400 Ungültige ID
+### Beispiel: Validierung schlägt fehl
+
+```bash
+curl -s -X PATCH \
+  "https://urent-rental.de/api/v1/inserat/9b9f4a2d-1e88-4d1b-8b6c-6a1c9a3d6e12/publish-unpublish" \
+  -H "Authorization: Bearer <API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"publish": true}'
+```
 
 **Response 400**
 ```json
 {
-  "ready": false,
-  "error": "Invalid inserat ID"
+  "success": false,
+  "error": "Inserat is not ready for publication",
+  "validationErrors": {
+    "ready": false,
+    "error": "Missing attributes",
+    "missingAttributes": {
+      "basic": ["title", "price"],
+      "category": ["seats", "doors"],
+      "address": true,
+      "images": true
+    }
+  }
 }
+```
+
+---
+
+### Beispiel: Multi-Inserat Limit
+
+Wenn `amount - bestehendeFahrzeuge > 25`:
+
+```json
+{ "success": false, "error": "Too many vehicles added at once" }
 ```
 
 
 ---
 
-## JSON Schema (200-Response)
+## JSON Schemas
 
-> Vereinfachtes Schema für erfolgreiche **200**-Antworten (unabhängig von `ready`). Fehlerantworten der Statuscodes 4xx/5xx können abweichen (siehe Beispiele oben).
+### Request-Body (Zod-Äquivalent)
 
 ```json
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "CheckReadyResponse",
   "type": "object",
   "properties": {
-    "ready": { "type": "boolean" },
-    "error": { "type": "string" },
-    "missingAttributes": {
-      "type": "object",
-      "properties": {
-        "basic": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "category": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "images": { "type": "boolean" },
-        "address": { "type": "boolean" }
-      },
-      "additionalProperties": false
-    },
-    "subscription": {
-      "type": "object",
-      "properties": {
-        "hasSubscription": { "type": "boolean" },
-        "subscriptionType": {
-          "type": ["string", "null"],
-          "enum": ["FREE", "BASIS", "PREMIUM", "ENTERPRISE", null]
-        },
-        "currentInserate": { "type": "number" },
-        "maxInserate": { "type": ["number", "null"] },
-        "subscriptionExpired": { "type": "boolean" }
-      },
-      "required": [
-        "hasSubscription",
-        "subscriptionType",
-        "currentInserate",
-        "maxInserate",
-        "subscriptionExpired"
-      ],
-      "additionalProperties": false
-    }
+    "publish": { "type": "boolean" },
+    "skipValidation": { "type": "boolean", "default": false }
   },
-  "required": ["ready"],
-  "additionalProperties": true
+  "required": ["publish"],
+  "additionalProperties": false
+}
+```
+
+### 200-Response (vereinfacht)
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "success": { "type": "boolean" },
+    "inserat": { "type": ["object", "null"] },
+    "error": { "type": ["string", "null"] },
+    "validationErrors": { "type": ["object", "null"] }
+  },
+  "required": ["success"]
 }
 ```
 
