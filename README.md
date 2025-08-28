@@ -68,24 +68,7 @@ So finden Teams schnell die relevanten Themen je Geschäftsbereich.
 
 ---
 
-## Profil
 
-> Benutzer- & Organisationskontext, API Keys, Abonnements
-
-**How-tos**
-- **API Key verwenden** → **[profil/api-key.md](profil/api-key.md)**
-- **Profil lesen/aktualisieren** → **[profil/profil-verwalten.md](profil/profil-verwalten.md)**
-- **Abo/Subscription prüfen** → **[profil/subscription.md](profil/subscription.md)**
-
-**Referenz**
-- **Profil** → **[reference/profil.md](reference/profil.md)**
-- **Subscription** → **[reference/subscription.md](reference/subscription.md)**
-
-**Schemas**
-- **User** → **[schemas/user.md](schemas/user.md)**
-- **Subscription** → **[schemas/subscription.md](schemas/subscription.md)**
-
----
 
 ## Inserate
 
@@ -114,10 +97,9 @@ So finden Teams schnell die relevanten Themen je Geschäftsbereich.
 > End-to-end Booking-Flow inkl. Zahlungen
 
 **How-tos**
-- **Buchung erstellen** → **[how-tos/buchung-erstellen.md](how-tos/buchung-erstellen.md)**
-- **Buchung stornieren** → **[how-tos/buchung-stornieren.md](how-tos/buchung-stornieren.md)**
-- **Buchungen auflisten & Details** → **[how-tos/buchungen-listen-und-details.md](how-tos/buchungen-listen-und-details.md)**
-- **Zahlungsstatus prüfen** → **[how-tos/zahlung-pruefen.md](how-tos/zahlung-pruefen.md)**
+- **Buchung erstellen** → **[booking/create-booking.md](booking/create-booking.md)**
+- **Buchung stornieren** → **[booking/delete-booking.md](booking/delete-booking.md)**
+- **Buchung updaten** → **[booking/update-booking.md](booking/update-booking.md)**
 
 **Referenz**
 - **Buchungen** → **[reference/buchungen.md](reference/buchungen.md)**  
